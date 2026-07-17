@@ -32,8 +32,8 @@ Aplicação desktop para organizar imagens (.jpg, .jpeg, .png) e vídeos (.mp4) 
 ### 1. Clone o repositório
 
 ```bash
-git clone <seu-repositorio>
-cd organizador-de-arquivos
+git clone https://github.com/FabioDziediczFilho/Organizador-De-arquivos-com-i.a.git
+cd Organizador-De-arquivos-com-i.a
 ```
 
 ### 2. Crie ambiente virtual
@@ -160,4 +160,4 @@ MIT License
 
 ## 👨‍💻 Autor
 
-Seu Nome - Freelancer Developer
+Fábio Dziedicz Filho - Freelancer Developer
