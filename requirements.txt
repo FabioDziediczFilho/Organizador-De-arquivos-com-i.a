@@ -1,0 +1,17 @@
+# Dependências Python para o Organizador de Arquivos
+
+# Interface gráfica (tkinter é builtin no Python, mas listamos para referência)
+# tkinter - já vem com Python
+
+# Manipulação de imagens
+Pillow>=10.0.0
+
+# Cliente HTTP para comunicação com Ollama
+requests>=2.31.0
+
+# Testes
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Type hints (opcional, mas boa prática)
+typing-extensions>=4.8.0
