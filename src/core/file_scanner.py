@@ -58,3 +58,58 @@ def scan_directory(directory: str, recursive: bool = True) -> List[FileInfo]:
                 supported_files.append(file_info)
     
     return supported_files
+
+def format_size(size_bytes: int) -> str:
+    """
+    Formata tamanho em bytes para formato legível.
+    
+    Args:
+        size_bytes: Tamanho em bytes
+        
+    Returns:
+        String formatada (ex: '1.5 MB', '500 KB')
+    """
+    
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} TB"
+
+def get_files_by_category(files: List[FileInfo], category: str) -> List[FileInfo]:
+    """
+    Filtra arquivos por categoria.
+    
+    Args:
+        files: Lista de FileInfo
+        category: Categoria desejada ('imagem' ou 'video')
+        
+    Returns:
+        Lista de FileInfo da categoria especificada
+    """
+    return [f for f in files if f.category == category]
+
+def get_scan_summary(files: List[FileInfo]) -> Dict[str, Any]:
+    """
+    Gera um resumo do escaneamento.
+    
+    Args:
+        files: Lista de FileInfo
+        
+    Returns:
+        Dicionário com estatísticas do escaneamento
+    """
+    total_files = len(files)
+    total_size =sum(f.size for f in files)
+
+    categories_count = {}
+    for file in files:
+        category = file.category
+        categories_count[category] = categories_count.get(category, 0) + 1
+    
+    return {
+        "total_files": total_files,
+        "total_size": total_size,
+        "total_size_formatted": format_size(total_size),
+        "categories": categories_count
+    }
