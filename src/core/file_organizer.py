@@ -69,3 +69,35 @@ class FileOrganizer:
         self.operations_log.append(f"Movido: {file_info.path} -> {destination}")
         
         return destination
+    
+    def organize_files(self, files: List[FileInfo], rename: bool = False) -> Dict[str, Any]:
+        """
+        Organiza uma lista de arquivos movendo-os para suas respectivas categorias.
+    
+        Args:
+            files: Lista de objetos FileInfo
+            rename: Se True, renomeia os arquivos (ainda não implementado)
+        
+        Returns:
+            Dicionário com resumo da operação
+        """
+        results = {
+            'moved': [],
+            'errors': [],
+            'total': len(files)
+        }
+        
+        for file_info in files:
+            try:
+                destination = self.move_file_to_category(file_info)
+                results['moved'].append({
+                    'original': file_info.path,
+                    'destination': destination
+                })
+            except Exception as e:
+                results['errors'].append({
+                    'file': file_info.path,
+                    'error': str(e)
+                })
+        
+        return results
