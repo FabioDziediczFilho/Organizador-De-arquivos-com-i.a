@@ -7,7 +7,9 @@ from ..core.file_scanner import scan_directory, get_scan_summary, format_size
 from ..core.file_organizer import FileOrganizer
 from ..core.batch_renamer import BatchRenamer
 from ..utils.logger import Logger
+from ..utils.config_manager import ConfigManager
 from .image_preview import ImagePreview
+from .settings_window import SettingsWindow
 
 
 class MainWindow:
@@ -23,9 +25,30 @@ class MainWindow:
         self.root = root
         self.root.title("Organizador de Arquivos com IA")
         self.root.geometry("1200x700")
+        self.root.minsize(1000, 650)
+        self.root.configure(bg="#f4f7fb")
+        self.root.option_add("*Font", "Arial 10")
+        self.root.option_add("*Background", "#f4f7fb")
+        self.root.option_add("*Foreground", "#22313f")
+
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use("clam")
+        except Exception:
+            pass
+        style.configure("TFrame", background="#f4f7fb")
+        style.configure("Card.TFrame", background="#ffffff")
+        style.configure("TLabel", background="#f4f7fb", foreground="#22313f")
+        style.configure("Accent.TButton", padding=(12, 8), background="#2563eb", foreground="#ffffff")
+        style.map("Accent.TButton", background=[("active", "#1d4ed8"), ("pressed", "#1e40af")], foreground=[("!disabled", "#ffffff")])
+        style.configure("Treeview", rowheight=26, fieldbackground="#ffffff", background="#ffffff")
+        style.configure("Treeview.Heading", background="#eaf2ff")
         
         # Inicializa o logger
         self.logger = Logger("FileOrganizerGUI")
+        
+        # Inicializa o gerenciador de configurações
+        self.config_manager = ConfigManager()
         
         # Variáveis
         self.selected_directory = tk.StringVar()
@@ -33,6 +56,7 @@ class MainWindow:
         self.organizer = None
         self.batch_renamer = None
         self.image_preview = None
+        self.settings_window = None
         
         # Cria a interface
         self.create_widgets()
@@ -41,89 +65,120 @@ class MainWindow:
 
     def create_widgets(self):
         """Cria todos os widgets da interface."""
-        # Cria notebook (abas)
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        header_frame = ttk.Frame(self.root, padding=(24, 20, 24, 12), style="Card.TFrame")
+        header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=16, pady=(16, 10))
+        header_frame.columnconfigure(0, weight=1)
+
+        tk.Label(
+            header_frame,
+            text="Organizador de Arquivos com IA",
+            font=("Arial", 18, "bold"),
+            fg="#1f4e79",
+            bg="#ffffff",
+        ).grid(row=0, column=0, sticky=tk.W)
+        tk.Label(
+            header_frame,
+            text="Organize, renomeie e visualize seus arquivos com uma interface mais limpa e intuitiva.",
+            font=("Arial", 10),
+            fg="#5b6b7a",
+            bg="#ffffff",
+        ).grid(row=1, column=0, sticky=tk.W, pady=(4, 0))
+        
+        # Botão de configurações
+        ttk.Button(
+            header_frame,
+            text="⚙️ Configurações",
+            command=self.open_settings,
+            style="Accent.TButton"
+        ).grid(row=0, column=1, rowspan=2, sticky=tk.E, padx=(20, 0))
+
+        # Cria área principal
+        self.notebook = ttk.Notebook(self.root, padding=8)
+        self.notebook.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=16, pady=(0, 8))
         
         # Configura grid principal
         self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        self.root.rowconfigure(1, weight=1)
         
         # Aba de organização
         self.create_organizer_tab()
         
-        # Aba de preview
-        self.create_preview_tab()
-        
         # Label de status
-        self.status_label = ttk.Label(self.root, text="Pronto", relief=tk.SUNKEN)
-        self.status_label.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        self.status_label = ttk.Label(self.root, text="Pronto", relief=tk.SUNKEN, padding=6)
+        self.status_label.grid(row=2, column=0, sticky=(tk.W, tk.E), padx=16, pady=(0, 12))
     
     def create_organizer_tab(self):
-        """Cria a aba de organização de arquivos."""
-        tab = ttk.Frame(self.notebook, padding="10")
+        """Cria a aba de organização de arquivos com preview embutido."""
+        tab = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(tab, text="Organização")
         
         # Frame principal
-        main_frame = ttk.Frame(tab)
+        main_frame = ttk.Frame(tab, style="Card.TFrame", padding=16)
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Configura grid
         tab.columnconfigure(0, weight=1)
         tab.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=2)
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(2, weight=1)
         
-        # Label e Entry para diretório
-        ttk.Label(main_frame, text="Diretório:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.selected_directory).grid(row=0, column=1, sticky=(tk.W, tk.E), pady=5, padx=5)
-        ttk.Button(main_frame, text="Selecionar", command=self.select_directory).grid(row=0, column=2, pady=5)
+        input_frame = ttk.Frame(main_frame, padding=(0, 0, 0, 10))
+        input_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 8))
+        input_frame.columnconfigure(1, weight=1)
+
+        tk.Label(input_frame, text="Diretório:", font=("Arial", 10, "bold"), bg="#ffffff").grid(row=0, column=0, sticky=tk.W, padx=(0, 8))
+        ttk.Entry(input_frame, textvariable=self.selected_directory).grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 8))
+        ttk.Button(input_frame, text="Selecionar", command=self.select_directory, style="Accent.TButton").grid(row=0, column=2)
         
         # Botões de ação
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=1, column=0, columnspan=3, pady=10)
+        button_frame.grid(row=1, column=0, columnspan=2, pady=(4, 10), sticky=tk.W)
         
-        ttk.Button(button_frame, text="Escanear Arquivos", command=self.scan_files).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Organizar por Categoria", command=self.organize_files).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Organizar por Padrão", command=self.organize_by_pattern).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Renomear Selecionado", command=self.rename_selected).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Escanear Arquivos", command=self.scan_files, style="Accent.TButton").pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(button_frame, text="Organizar por Categoria", command=self.organize_files).pack(side=tk.LEFT, padx=6)
+        ttk.Button(button_frame, text="Organizar por Padrão", command=self.organize_by_pattern).pack(side=tk.LEFT, padx=6)
+        ttk.Button(button_frame, text="Renomear Selecionado", command=self.rename_selected).pack(side=tk.LEFT, padx=6)
         
-        # Lista de arquivos
-        ttk.Label(main_frame, text="Arquivos encontrados:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        # Área de conteúdo
+        files_panel = ttk.Frame(main_frame, padding=(0, 0, 8, 0))
+        files_panel.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        files_panel.columnconfigure(0, weight=1)
+        files_panel.rowconfigure(1, weight=1)
+
+        preview_panel = ttk.Frame(main_frame, style="Card.TFrame", padding=10)
+        preview_panel.grid(row=2, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(8, 0))
+        preview_panel.columnconfigure(0, weight=1)
+        preview_panel.rowconfigure(0, weight=1)
+
+        tk.Label(files_panel, text="Arquivos encontrados:", font=("Arial", 10, "bold"), bg="#ffffff").grid(row=0, column=0, sticky=tk.W, pady=(0, 6))
         
         # Treeview para mostrar arquivos
-        self.tree = ttk.Treeview(main_frame, columns=('name', 'category', 'size', 'path'), show='headings')
+        self.tree = ttk.Treeview(files_panel, columns=('name', 'category', 'size', 'path'), show='headings', height=12)
         self.tree.heading('name', text='Nome')
         self.tree.heading('category', text='Categoria')
         self.tree.heading('size', text='Tamanho')
         self.tree.heading('path', text='Caminho')
-        self.tree.column('path', width=0, stretch=False)  # Esconde a coluna de caminho
-        self.tree.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        self.tree.column('name', width=220)
+        self.tree.column('category', width=100)
+        self.tree.column('size', width=85)
+        self.tree.column('path', width=0, stretch=False)
+        self.tree.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
         
         # Scrollbar
-        scrollbar = ttk.Scrollbar(main_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        scrollbar = ttk.Scrollbar(files_panel, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.grid(row=3, column=3, sticky=(tk.N, tk.S))
+        scrollbar.grid(row=1, column=1, sticky=(tk.N, tk.S))
+        
+        # Preview embutido
+        tk.Label(preview_panel, text="Preview", font=("Arial", 10, "bold"), bg="#ffffff").grid(row=0, column=0, sticky=tk.W, pady=(0, 6))
+        self.image_preview = ImagePreview(preview_panel)
+        preview_frame = self.image_preview.create_preview_frame()
+        preview_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        preview_panel.rowconfigure(1, weight=1)
         
         # Configura seleção na treeview
         self.tree.bind('<<TreeviewSelect>>', self.on_file_select)
-        
-        # Configura grid para expansão
-        main_frame.rowconfigure(3, weight=1)
-    
-    def create_preview_tab(self):
-        """Cria a aba de preview de imagens."""
-        tab = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(tab, text="Preview")
-        
-        # Cria o visualizador
-        self.image_preview = ImagePreview(tab)
-        preview_frame = self.image_preview.create_preview_frame()
-        preview_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # Configura grid
-        tab.columnconfigure(0, weight=1)
-        tab.rowconfigure(0, weight=1)
 
     def select_directory(self):
         """Abre diálogo para selecionar diretório."""
@@ -187,13 +242,11 @@ class MainWindow:
             item = self.tree.item(selected_items[0])
             file_path = item['values'][3]  # Coluna do caminho
             
-            # Verifica se é uma imagem
-            if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
-                # Carrega no preview
-                if self.image_preview:
+            if self.image_preview:
+                if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
                     self.image_preview.load_image(file_path)
-                    # Muda para a aba de preview
-                    self.notebook.select(1)
+                else:
+                    self.image_preview.clear_preview()
     
     def organize_files(self):
         """Organiza os arquivos escaneados por categoria."""
@@ -364,6 +417,15 @@ class MainWindow:
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao renomear: {str(e)}")
             self.logger.error(f"Erro ao renomear: {str(e)}")
+    
+    def open_settings(self):
+        """Abre a janela de configurações."""
+        try:
+            self.settings_window = SettingsWindow(self.root, self.config_manager)
+            self.logger.info("Janela de configurações aberta")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao abrir configurações: {str(e)}")
+            self.logger.error(f"Erro ao abrir configurações: {str(e)}")
 
 
 if __name__ == "__main__":
