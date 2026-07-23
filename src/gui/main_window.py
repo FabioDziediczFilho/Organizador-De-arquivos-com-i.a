@@ -104,6 +104,9 @@ class MainWindow:
         # Aba de organização
         self.create_organizer_tab()
         
+        # Aba de IA
+        self.create_ai_tab()
+        
         # Label de status
         self.status_label = ttk.Label(self.root, text="Pronto", relief=tk.SUNKEN, padding=6)
         self.status_label.grid(row=2, column=0, sticky=(tk.W, tk.E), padx=16, pady=(0, 12))
@@ -155,7 +158,7 @@ class MainWindow:
         tk.Label(files_panel, text="Arquivos encontrados:", font=("Arial", 10, "bold"), bg="#ffffff").grid(row=0, column=0, sticky=tk.W, pady=(0, 6))
         
         # Treeview para mostrar arquivos
-        self.tree = ttk.Treeview(files_panel, columns=('name', 'category', 'size', 'path'), show='headings', height=12)
+        self.tree = ttk.Treeview(files_panel, columns=('name', 'category', 'size', 'path'), show='headings', height=12, selectmode='extended')
         self.tree.heading('name', text='Nome')
         self.tree.heading('category', text='Categoria')
         self.tree.heading('size', text='Tamanho')
@@ -180,14 +183,278 @@ class MainWindow:
         
         # Configura seleção na treeview
         self.tree.bind('<<TreeviewSelect>>', self.on_file_select)
+    
+    def create_ai_tab(self):
+        """Cria a aba de interação com IA."""
+        tab = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(tab, text="IA")
+        
+        # Frame principal
+        main_frame = ttk.Frame(tab, style="Card.TFrame", padding=16)
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # Configura grid
+        tab.columnconfigure(0, weight=1)
+        tab.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(2, weight=1)
+        
+        # Header
+        tk.Label(
+            main_frame,
+            text="Inteligência Artificial",
+            font=("Arial", 16, "bold"),
+            fg="#1f4e79",
+            bg="#ffffff"
+        ).grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        
+        tk.Label(
+            main_frame,
+            text="Analise imagens, classifique arquivos e renomeie com IA usando Ollama",
+            font=("Arial", 10),
+            fg="#5b6b7a",
+            bg="#ffffff"
+        ).grid(row=1, column=0, sticky=tk.W, pady=(0, 15))
+        
+        # Botões de ação IA
+        button_frame = ttk.Frame(main_frame)
+        button_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        ttk.Button(button_frame, text="Verificar Conexão Ollama", command=self.check_ollama_connection, style="Accent.TButton").pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(button_frame, text="Analisar Imagem Selecionada", command=self.analyze_image_with_ai).pack(side=tk.LEFT, padx=6)
+        ttk.Button(button_frame, text="Classificar Arquivos com IA", command=self.classify_files_with_ai).pack(side=tk.LEFT, padx=6)
+        ttk.Button(button_frame, text="Renomear com IA", command=self.rename_with_ai).pack(side=tk.LEFT, padx=6)
+        
+        # Área de output
+        output_frame = ttk.Frame(main_frame)
+        output_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
+        output_frame.columnconfigure(0, weight=1)
+        output_frame.rowconfigure(0, weight=1)
+        
+        tk.Label(output_frame, text="Saída da IA:", font=("Arial", 10, "bold"), bg="#ffffff").grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        
+        # Text widget para output
+        self.ai_output = tk.Text(output_frame, height=15, wrap=tk.WORD, font=("Arial", 9))
+        self.ai_output.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # Scrollbar
+        ai_scrollbar = ttk.Scrollbar(output_frame, orient=tk.VERTICAL, command=self.ai_output.yview)
+        self.ai_output.configure(yscrollcommand=ai_scrollbar.set)
+        ai_scrollbar.grid(row=1, column=1, sticky=(tk.N, tk.S))
+        
+        main_frame.rowconfigure(3, weight=1)
+    
+    def check_ollama_connection(self):
+        """Verifica a conexão com Ollama."""
+        try:
+            from ..ai.ollama_client import OllamaClient
+            
+            host = self.config_manager.get('ollama.host', 'http://localhost:11434')
+            client = OllamaClient(host)
+            
+            self.ai_output.insert(tk.END, f"Verificando conexão com Ollama em {host}...\n")
+            self.ai_output.see(tk.END)
+            self.root.update()
+            
+            if client.check_connection():
+                models = client.list_models()
+                self.ai_output.insert(tk.END, "✅ Conexão estabelecida com sucesso!\n\n")
+                self.ai_output.insert(tk.END, f"Modelos disponíveis: {', '.join(models) if models else 'Nenhum modelo encontrado'}\n")
+                self.logger.info("Conexão com Ollama verificada com sucesso")
+            else:
+                self.ai_output.insert(tk.END, "❌ Falha na conexão com Ollama.\n")
+                self.ai_output.insert(tk.END, "Verifique se o Ollama está rodando.\n")
+                self.ai_output.insert(tk.END, "Execute: ollama serve\n")
+                self.logger.warning("Falha na conexão com Ollama")
+            
+            self.ai_output.see(tk.END)
+            
+        except Exception as e:
+            self.ai_output.insert(tk.END, f"❌ Erro ao verificar conexão: {str(e)}\n")
+            self.ai_output.see(tk.END)
+            self.logger.error(f"Erro ao verificar conexão Ollama: {str(e)}")
+    
+    def analyze_image_with_ai(self):
+        """Analisa a imagem selecionada com IA."""
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Aviso", "Selecione uma imagem para analisar!")
+            return
+        
+        try:
+            from ..ai.image_analyzer import ImageAnalyzer
+            
+            item = self.tree.item(selected_items[0])
+            file_path = item['values'][3]
+            
+            if not file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
+                messagebox.showwarning("Aviso", "Selecione uma imagem (.jpg, .jpeg, .png)!")
+                return
+            
+            host = self.config_manager.get('ollama.host', 'http://localhost:11434')
+            model = self.config_manager.get('ollama.model', 'qwen2-vl:7b')
+            
+            self.ai_output.insert(tk.END, f"Analisando imagem: {os.path.basename(file_path)}\n")
+            self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+            self.ai_output.insert(tk.END, "-" * 50 + "\n")
+            self.ai_output.see(tk.END)
+            self.root.update()
+            
+            analyzer = ImageAnalyzer(host, model)
+            result = analyzer.analyze_image(file_path)
+            
+            self.ai_output.insert(tk.END, f"Contexto: {result['context']}\n")
+            self.ai_output.insert(tk.END, f"Sugestão de nome: {result['suggested_name']}\n")
+            self.ai_output.insert(tk.END, f"Categoria: {result['category']}\n")
+            self.ai_output.insert(tk.END, "-" * 50 + "\n\n")
+            self.ai_output.see(tk.END)
+            
+            self.logger.info(f"Imagem analisada com IA: {file_path}")
+            
+        except Exception as e:
+            self.ai_output.insert(tk.END, f"❌ Erro ao analisar imagem: {str(e)}\n")
+            self.ai_output.see(tk.END)
+            self.logger.error(f"Erro ao analisar imagem com IA: {str(e)}")
+    
+    def classify_files_with_ai(self):
+        """Classifica os arquivos com IA."""
+        if not self.scanned_files:
+            messagebox.showwarning("Aviso", "Escaneie arquivos primeiro!")
+            return
+        
+        try:
+            from ..ai.context_classifier import ContextClassifier
+            from ..ai.image_analyzer import ImageAnalyzer
+            
+            host = self.config_manager.get('ollama.host', 'http://localhost:11434')
+            model = self.config_manager.get('ollama.model', 'qwen2-vl:7b')
+            
+            # Filtra apenas imagens
+            image_files = [f for f in self.scanned_files if f.path.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            
+            if not image_files:
+                messagebox.showinfo("Info", "Nenhuma imagem encontrada para classificar!")
+                return
+            
+            self.ai_output.insert(tk.END, f"Classificando {len(image_files)} imagens com IA...\n")
+            self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+            self.ai_output.insert(tk.END, "-" * 50 + "\n")
+            self.ai_output.see(tk.END)
+            self.root.update()
+            
+            classifier = ContextClassifier(host, model)
+            results = classifier.classify_batch([f.path for f in image_files])
+            
+            for file_info, result in zip(image_files, results):
+                self.ai_output.insert(tk.END, f"{file_info.name} -> {result['category']}\n")
+                self.ai_output.see(tk.END)
+                self.root.update()
+            
+            self.ai_output.insert(tk.END, "-" * 50 + "\n")
+            self.ai_output.insert(tk.END, f"Classificação concluída: {len(results)} arquivos\n\n")
+            self.ai_output.see(tk.END)
+            
+            self.logger.info(f"Arquivos classificados com IA: {len(results)} imagens")
+            
+        except Exception as e:
+            self.ai_output.insert(tk.END, f"❌ Erro ao classificar arquivos: {str(e)}\n")
+            self.ai_output.see(tk.END)
+            self.logger.error(f"Erro ao classificar arquivos com IA: {str(e)}")
+    
+    def rename_with_ai(self):
+        """Renomeia arquivos com IA."""
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Aviso", "Selecione arquivos para renomear!")
+            return
+        
+        try:
+            from ..ai.image_analyzer import ImageAnalyzer
+            
+            host = self.config_manager.get('ollama.host', 'http://localhost:11434')
+            model = self.config_manager.get('ollama.model', 'qwen2-vl:7b')
+            
+            # Filtra apenas imagens
+            image_items = []
+            for item in selected_items:
+                item_data = self.tree.item(item)
+                file_path = item_data['values'][3]
+                if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    image_items.append(item_data)
+            
+            if not image_items:
+                messagebox.showinfo("Info", "Selecione imagens (.jpg, .jpeg, .png) para renomear!")
+                return
+            
+            result = messagebox.askyesno(
+                "Confirmação",
+                f"Deseja renomear {len(image_items)} imagens com IA?\n"
+                "Os arquivos serão renomeados baseados no conteúdo analisado."
+            )
+            
+            if not result:
+                return
+            
+            self.ai_output.insert(tk.END, f"Renomeando {len(image_items)} imagens com IA...\n")
+            self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+            self.ai_output.insert(tk.END, "-" * 50 + "\n")
+            self.ai_output.see(tk.END)
+            self.root.update()
+            
+            analyzer = ImageAnalyzer(host, model)
+            renamed_count = 0
+            error_count = 0
+            
+            for item_data in image_items:
+                try:
+                    file_path = item_data['values'][3]
+                    old_name = item_data['values'][0]
+                    
+                    result = analyzer.analyze_image(file_path)
+                    suggested_name = result['suggested_name']
+                    
+                    # Adiciona extensão original
+                    extension = os.path.splitext(file_path)[1]
+                    new_name = suggested_name + extension
+                    
+                    # Renomeia
+                    directory = self.selected_directory.get()
+                    self.batch_renamer = BatchRenamer(directory)
+                    new_path = self.batch_renamer.rename_file(file_path, new_name)
+                    
+                    self.ai_output.insert(tk.END, f"{old_name} -> {os.path.basename(new_path)}\n")
+                    renamed_count += 1
+                    self.ai_output.see(tk.END)
+                    self.root.update()
+                    
+                except Exception as e:
+                    error_count += 1
+                    self.ai_output.insert(tk.END, f"Erro ao renomear {item_data['values'][0]}: {str(e)}\n")
+                    self.ai_output.see(tk.END)
+            
+            self.ai_output.insert(tk.END, "-" * 50 + "\n")
+            self.ai_output.insert(tk.END, f"Renomeamento concluído: {renamed_count} arquivos, {error_count} erros\n\n")
+            self.ai_output.see(tk.END)
+            
+            self.logger.info(f"Renomeamento com IA concluído: {renamed_count} arquivos")
+            
+            # Reescaneia para atualizar
+            self.scan_files()
+            
+        except Exception as e:
+            self.ai_output.insert(tk.END, f"❌ Erro ao renomear com IA: {str(e)}\n")
+            self.ai_output.see(tk.END)
+            self.logger.error(f"Erro ao renomear com IA: {str(e)}")
 
     def select_directory(self):
-        """Abre diálogo para selecionar diretório."""
+        """Abre diálogo para selecionar diretório e escaneia automaticamente."""
         directory = filedialog.askdirectory(title="Selecione o diretório para escanear")
         if directory:
             self.selected_directory.set(directory)
             self.logger.info(f"Diretório selecionado: {directory}")
             self.status_label.config(text=f"Diretório selecionado: {directory}")
+            # Auto scan após selecionar
+            self.scan_files()
 
     def scan_files(self):
         """Escaneia o diretório selecionado e mostra os arquivos."""
