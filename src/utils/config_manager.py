@@ -26,6 +26,14 @@ class ConfigManager:
                 "model": "qwen2-vl:7b",
                 "enabled": False
             },
+            "gemini": {
+                "api_key": "",
+                "model": "gemini-3.5-flash",
+                "enabled": False
+            },
+            "ai_provider": {
+                "selected": "ollama"  # "ollama" ou "gemini"
+            },
             "organization": {
                 "create_backup": True,
                 "confirm_actions": True,
