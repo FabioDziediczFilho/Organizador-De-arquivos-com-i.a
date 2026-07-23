@@ -1,13 +1,16 @@
 # Dependências Python para o Organizador de Arquivos
 
-# Interface gráfica (tkinter é builtin no Python, mas listamos para referência)
-# tkinter - já vem com Python
+# Interface gráfica - PySide6 (Qt6)
+PySide6>=6.5.0
 
 # Manipulação de imagens
 Pillow>=10.0.0
 
 # Cliente HTTP para comunicação com Ollama
 requests>=2.31.0
+
+# Cliente Google GenAI (Gemini)
+google-genai>=0.3.0
 
 # Testes
 pytest>=7.4.0

@@ -197,7 +197,10 @@ class MainWindow:
         tab.columnconfigure(0, weight=1)
         tab.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(2, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+        main_frame.columnconfigure(2, weight=2)
+        main_frame.rowconfigure(0, weight=0)
+        main_frame.rowconfigure(1, weight=1)
         
         # Header
         tk.Label(
@@ -206,45 +209,238 @@ class MainWindow:
             font=("Arial", 16, "bold"),
             fg="#1f4e79",
             bg="#ffffff"
-        ).grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        ).grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=(0, 5))
         
         tk.Label(
             main_frame,
-            text="Analise imagens, classifique arquivos e renomeie com IA usando Ollama",
+            text="Analise imagens, classifique arquivos e interaja com IA",
             font=("Arial", 10),
             fg="#5b6b7a",
             bg="#ffffff"
-        ).grid(row=1, column=0, sticky=tk.W, pady=(0, 15))
+        ).grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=(0, 10))
         
         # Botões de ação IA
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        button_frame.grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=(0, 10))
         
-        ttk.Button(button_frame, text="Verificar Conexão Ollama", command=self.check_ollama_connection, style="Accent.TButton").pack(side=tk.LEFT, padx=(0, 6))
-        ttk.Button(button_frame, text="Analisar Imagem Selecionada", command=self.analyze_image_with_ai).pack(side=tk.LEFT, padx=6)
-        ttk.Button(button_frame, text="Classificar Arquivos com IA", command=self.classify_files_with_ai).pack(side=tk.LEFT, padx=6)
+        ttk.Button(button_frame, text="Verificar Conexão", command=self.check_ollama_connection, style="Accent.TButton").pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(button_frame, text="Analisar Imagem", command=self.analyze_image_with_ai).pack(side=tk.LEFT, padx=6)
+        ttk.Button(button_frame, text="Classificar Arquivos", command=self.classify_files_with_ai).pack(side=tk.LEFT, padx=6)
         ttk.Button(button_frame, text="Renomear com IA", command=self.rename_with_ai).pack(side=tk.LEFT, padx=6)
         
-        # Área de output
-        output_frame = ttk.Frame(main_frame)
-        output_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
-        output_frame.columnconfigure(0, weight=1)
-        output_frame.rowconfigure(0, weight=1)
+        # Painel esquerdo - Treeview de arquivos
+        files_panel = ttk.LabelFrame(main_frame, text="Arquivos", padding=10)
+        files_panel.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5))
+        files_panel.columnconfigure(0, weight=1)
+        files_panel.rowconfigure(0, weight=1)
         
-        tk.Label(output_frame, text="Saída da IA:", font=("Arial", 10, "bold"), bg="#ffffff").grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        # Treeview para arquivos na aba IA
+        self.ai_tree = ttk.Treeview(files_panel, columns=('name', 'type'), show='headings', height=20, selectmode='extended')
+        self.ai_tree.heading('name', text='Nome')
+        self.ai_tree.heading('type', text='Tipo')
+        self.ai_tree.column('name', width=200)
+        self.ai_tree.column('type', width=80)
+        self.ai_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # Text widget para output
-        self.ai_output = tk.Text(output_frame, height=15, wrap=tk.WORD, font=("Arial", 9))
-        self.ai_output.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        ai_tree_scrollbar = ttk.Scrollbar(files_panel, orient=tk.VERTICAL, command=self.ai_tree.yview)
+        self.ai_tree.configure(yscrollcommand=ai_tree_scrollbar.set)
+        ai_tree_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         
-        # Scrollbar
-        ai_scrollbar = ttk.Scrollbar(output_frame, orient=tk.VERTICAL, command=self.ai_output.yview)
-        self.ai_output.configure(yscrollcommand=ai_scrollbar.set)
-        ai_scrollbar.grid(row=1, column=1, sticky=(tk.N, tk.S))
+        # Bind para seleção
+        self.ai_tree.bind('<<TreeviewSelect>>', self.on_ai_file_select)
+
+        # Painel central - Preview de imagem
+        preview_panel = ttk.LabelFrame(main_frame, text="Preview", padding=10)
+        preview_panel.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5)
+        preview_panel.columnconfigure(0, weight=1)
+        preview_panel.rowconfigure(0, weight=1)
+
+        # Canvas para preview
+        self.ai_preview_canvas = tk.Canvas(preview_panel, bg="#f0f0f0", width=300, height=300)
+        self.ai_preview_canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        # Label de informação do arquivo
+        self.ai_file_info = tk.Label(preview_panel, text="Nenhum arquivo selecionado", bg="#ffffff", fg="#5b6b7a")
+        self.ai_file_info.grid(row=1, column=0, sticky=tk.W, pady=(5, 0))
+
+        # Painel direito - Chat/Output
+        chat_panel = ttk.LabelFrame(main_frame, text="Chat com IA", padding=10)
+        chat_panel.grid(row=1, column=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+        chat_panel.columnconfigure(0, weight=1)
+        chat_panel.rowconfigure(0, weight=1)
+        chat_panel.rowconfigure(1, weight=0)
+
+        # Área de chat (output)
+        self.ai_output = tk.Text(chat_panel, height=20, wrap=tk.WORD, font=("Arial", 9), state='disabled')
+        self.ai_output.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        chat_scrollbar = ttk.Scrollbar(chat_panel, orient=tk.VERTICAL, command=self.ai_output.yview)
+        self.ai_output.configure(yscrollcommand=chat_scrollbar.set)
+        chat_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+
+        # Campo de entrada
+        input_frame = ttk.Frame(chat_panel)
+        input_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0))
+        input_frame.columnconfigure(0, weight=1)
+
+        self.ai_input = ttk.Entry(input_frame)
+        self.ai_input.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
+        self.ai_input.bind('<Return>', self.send_ai_message)
+
+        ttk.Button(input_frame, text="Enviar", command=self.send_ai_message).grid(row=0, column=1)
+
+    def on_ai_file_select(self, event):
+        """Quando um arquivo é selecionado na treeview da IA."""
+        selected_items = self.ai_tree.selection()
+        if not selected_items:
+            return
+
+        try:
+            item = self.ai_tree.item(selected_items[0])
+            file_path = item['values'][2] if len(item['values']) > 2 else None
+
+            if file_path and os.path.exists(file_path):
+                # Mostra informações do arquivo
+                file_name = os.path.basename(file_path)
+                file_size = os.path.getsize(file_path)
+                size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.1f} MB"
+                self.ai_file_info.config(text=f"{file_name} ({size_str})")
+
+                # Mostra preview se for imagem
+                if file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')):
+                    self.show_ai_preview(file_path)
+                else:
+                    self.ai_preview_canvas.delete("all")
+                    self.ai_preview_canvas.create_text(
+                        150, 150,
+                        text="Arquivo não é uma imagem",
+                        fill="#5b6b7a",
+                        font=("Arial", 10)
+                    )
+
+        except Exception as e:
+            self.logger.error(f"Erro ao selecionar arquivo na IA: {str(e)}")
+
+    def show_ai_preview(self, file_path):
+        """Mostra preview da imagem no canvas da IA."""
+        try:
+            from PIL import Image, ImageTk
+
+            # Carrega imagem
+            image = Image.open(file_path)
+
+            # Redimensiona para caber no canvas
+            canvas_width = 300
+            canvas_height = 300
+            image.thumbnail((canvas_width, canvas_height), Image.Resampling.LANCZOS)
+
+            # Converte para PhotoImage
+            photo = ImageTk.PhotoImage(image)
+
+            # Limpa canvas e mostra imagem
+            self.ai_preview_canvas.delete("all")
+            self.ai_preview_canvas.create_image(
+                canvas_width // 2,
+                canvas_height // 2,
+                image=photo,
+                anchor=tk.CENTER
+            )
+
+            # Mantém referência para não ser garbage collected
+            self.ai_preview_image = photo
+
+        except Exception as e:
+            self.logger.error(f"Erro ao mostrar preview na IA: {str(e)}")
+            self.ai_preview_canvas.delete("all")
+            self.ai_preview_canvas.create_text(
+                150, 150,
+                text="Erro ao carregar imagem",
+                fill="#ff0000",
+                font=("Arial", 10)
+            )
+
+    def send_ai_message(self, event=None):
+        """Envia mensagem para a IA."""
+        message = self.ai_input.get().strip()
+        if not message:
+            return
         
-        main_frame.rowconfigure(3, weight=1)
+        try:
+            provider = self.config_manager.get('ai_provider.selected', 'ollama')
+
+            # Habilita text widget
+            self.ai_output.config(state='normal')
+
+            # Mostra mensagem do usuário
+            self.ai_output.insert(tk.END, f"Você: {message}\n\n")
+            self.ai_output.see(tk.END)
+
+            # Limpa input
+            self.ai_input.delete(0, tk.END)
+
+            # Envia para IA
+            if provider == 'gemini':
+                response = self.chat_with_gemini(message)
+            else:
+                response = self.chat_with_ollama(message)
+
+            # Mostra resposta
+            self.ai_output.insert(tk.END, f"IA: {response}\n\n")
+            self.ai_output.see(tk.END)
+
+            # Desabilita text widget
+            self.ai_output.config(state='disabled')
+
+        except Exception as e:
+            self.ai_output.config(state='normal')
+            self.ai_output.insert(tk.END, f"Erro: {str(e)}\n\n")
+            self.ai_output.see(tk.END)
+            self.ai_output.config(state='disabled')
+            self.logger.error(f"Erro ao enviar mensagem para IA: {str(e)}")
+
+    def chat_with_gemini(self, message: str) -> str:
+        """Chat com Gemini."""
+        from ..ai.gemini_client import GeminiClient
+
+        api_key = self.config_manager.get('gemini.api_key')
+        model = self.config_manager.get('gemini.model', 'gemini-3.5-flash')
+
+        if not api_key:
+            return "API Key do Gemini não configurada."
+
+        client = GeminiClient(api_key, model)
+        response = client.generate_text(message)
+
+        return response if response else "Erro ao gerar resposta."
+
+    def chat_with_ollama(self, message: str) -> str:
+        """Chat com Ollama."""
+        from ..ai.ollama_client import OllamaClient
+
+        host = self.config_manager.get('ollama.host', 'http://localhost:11434')
+        model = self.config_manager.get('ollama.model', 'qwen2-vl:7b')
+
+        client = OllamaClient(host)
+        response = client.generate_text(message, model)
+
+        return response if response else "Erro ao gerar resposta."
     
     def check_ollama_connection(self):
+        """Verifica a conexão com o provedor de IA selecionado."""
+        try:
+            provider = self.config_manager.get('ai_provider.selected', 'ollama')
+
+            if provider == 'gemini':
+                self.check_gemini_connection()
+            else:
+                self.check_ollama_connection_internal()
+
+        except Exception as e:
+            self.ai_output.insert(tk.END, f"❌ Erro ao verificar conexão: {str(e)}\n")
+            self.ai_output.see(tk.END)
+            self.logger.error(f"Erro ao verificar conexão: {str(e)}")
+
+    def check_ollama_connection_internal(self):
         """Verifica a conexão com Ollama."""
         try:
             from ..ai.ollama_client import OllamaClient
@@ -270,155 +466,262 @@ class MainWindow:
             self.ai_output.see(tk.END)
             
         except Exception as e:
-            self.ai_output.insert(tk.END, f"❌ Erro ao verificar conexão: {str(e)}\n")
+            self.ai_output.insert(tk.END, f"❌ Erro ao verificar conexão Ollama: {str(e)}\n")
             self.ai_output.see(tk.END)
             self.logger.error(f"Erro ao verificar conexão Ollama: {str(e)}")
     
+    def check_gemini_connection(self):
+        """Verifica a conexão com Gemini."""
+        try:
+            from ..ai.gemini_client import GeminiClient
+
+            api_key = self.config_manager.get('gemini.api_key')
+            model = self.config_manager.get('gemini.model', 'gemini-3.5-flash')
+
+            if not api_key:
+                self.ai_output.insert(tk.END, "❌ API Key do Gemini não configurada.\n")
+                self.ai_output.insert(tk.END, "Configure a API Key nas configurações (⚙️).\n")
+                self.ai_output.see(tk.END)
+                return
+
+            client = GeminiClient(api_key, model)
+
+            self.ai_output.insert(tk.END, f"Verificando conexão com Gemini ({model})...\n")
+            self.ai_output.see(tk.END)
+            self.root.update()
+
+            if client.check_connection():
+                models = client.list_models()
+                self.ai_output.insert(tk.END, "✅ Conexão estabelecida com sucesso!\n\n")
+                self.ai_output.insert(tk.END, f"Modelos disponíveis: {len(models)}\n")
+                self.logger.info("Conexão com Gemini verificada com sucesso")
+            else:
+                self.ai_output.insert(tk.END, "❌ Falha na conexão com Gemini.\n")
+                self.ai_output.insert(tk.END, "Verifique se a API Key está correta.\n")
+                self.logger.warning("Falha na conexão com Gemini")
+
+            self.ai_output.see(tk.END)
+
+        except Exception as e:
+            self.ai_output.insert(tk.END, f"❌ Erro ao verificar conexão Gemini: {str(e)}\n")
+            self.ai_output.see(tk.END)
+            self.logger.error(f"Erro ao verificar conexão Gemini: {str(e)}")
+
     def analyze_image_with_ai(self):
         """Analisa a imagem selecionada com IA."""
-        selected_items = self.tree.selection()
+        selected_items = self.ai_tree.selection()
         if not selected_items:
-            messagebox.showwarning("Aviso", "Selecione uma imagem para analisar!")
+            messagebox.showwarning("Aviso", "Selecione uma imagem na aba IA para analisar!")
             return
         
         try:
-            from ..ai.image_analyzer import ImageAnalyzer
+            item = self.ai_tree.item(selected_items[0])
+            file_path = item['values'][2] if len(item['values']) > 2 else None
             
-            item = self.tree.item(selected_items[0])
-            values = item.get('values')
-            if not values or len(values) <= 3:
-                return
-            file_path = values[3]
-            
-            if not file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
-                messagebox.showwarning("Aviso", "Selecione uma imagem (.jpg, .jpeg, .png)!")
+            if not file_path:
+                messagebox.showwarning("Aviso", "Erro ao obter caminho do arquivo!")
                 return
             
-            host = self.config_manager.get('ollama.host', 'http://localhost:11434')
-            model = self.config_manager.get('ollama.model', 'qwen2-vl:7b')
+            if not file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')):
+                messagebox.showwarning("Aviso", "Selecione uma imagem (.jpg, .jpeg, .png, .gif, .bmp, .webp)!")
+                return
+            
+            provider = self.config_manager.get('ai_provider.selected', 'ollama')
             
             self.ai_output.insert(tk.END, f"Analisando imagem: {os.path.basename(file_path)}\n")
-            self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+            self.ai_output.insert(tk.END, f"Provedor: {provider}\n")
             self.ai_output.insert(tk.END, "-" * 50 + "\n")
             self.ai_output.see(tk.END)
             self.root.update()
             
-            analyzer = ImageAnalyzer(host, model)
-            result = analyzer.analyze_image(file_path)
+            if provider == 'gemini':
+                result = self.analyze_with_gemini(file_path)
+            else:
+                result = self.analyze_with_ollama(file_path)
+
+            if result:
+                self.ai_output.insert(tk.END, f"Contexto: {result['context']}\n")
+                self.ai_output.insert(tk.END, f"Sugestão de nome: {result['suggested_name']}\n")
+                self.ai_output.insert(tk.END, f"Categoria: {result['category']}\n")
             
-            self.ai_output.insert(tk.END, f"Contexto: {result['context']}\n")
-            self.ai_output.insert(tk.END, f"Sugestão de nome: {result['suggested_name']}\n")
-            self.ai_output.insert(tk.END, f"Categoria: {result['category']}\n")
             self.ai_output.insert(tk.END, "-" * 50 + "\n\n")
             self.ai_output.see(tk.END)
             
-            self.logger.info(f"Imagem analisada com IA: {file_path}")
+            self.logger.info(f"Imagem analisada com IA ({provider}): {file_path}")
             
         except Exception as e:
             self.ai_output.insert(tk.END, f"❌ Erro ao analisar imagem: {str(e)}\n")
             self.ai_output.see(tk.END)
             self.logger.error(f"Erro ao analisar imagem com IA: {str(e)}")
     
+    def analyze_with_ollama(self, file_path: str) -> dict:
+        """Analisa imagem com Ollama."""
+        from ..ai.image_analyzer import ImageAnalyzer
+
+        host = self.config_manager.get('ollama.host', 'http://localhost:11434')
+        model = self.config_manager.get('ollama.model', 'qwen2-vl:7b')
+
+        self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+        self.ai_output.see(tk.END)
+        self.root.update()
+
+        analyzer = ImageAnalyzer(host, model)
+        return analyzer.analyze_image(file_path)
+
+    def analyze_with_gemini(self, file_path: str) -> dict:
+        """Analisa imagem com Gemini."""
+        from ..ai.gemini_client import GeminiClient
+
+        api_key = self.config_manager.get('gemini.api_key')
+        model = self.config_manager.get('gemini.model', 'gemini-3.5-flash')
+
+        if not api_key:
+            self.ai_output.insert(tk.END, "❌ API Key do Gemini não configurada.\n")
+            self.ai_output.see(tk.END)
+            return None
+
+        self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+        self.ai_output.see(tk.END)
+        self.root.update()
+
+        client = GeminiClient(api_key, model)
+        return client.analyze_image_for_file_organization(file_path)
+
     def classify_files_with_ai(self):
         """Classifica os arquivos com IA."""
-        if not self.scanned_files:
-            messagebox.showwarning("Aviso", "Escaneie arquivos primeiro!")
+        selected_items = self.ai_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Aviso", "Selecione arquivos na aba IA para classificar!")
             return
         
         try:
-            from ..ai.context_classifier import ContextClassifier
-            from ..ai.image_analyzer import ImageAnalyzer
+            # Coleta caminhos dos arquivos selecionados
+            file_paths = []
+            for item in selected_items:
+                item_data = self.ai_tree.item(item)
+                file_path = item_data['values'][2] if len(item_data['values']) > 2 else None
+                if file_path and file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')):
+                    file_paths.append(file_path)
             
-            host = self.config_manager.get('ollama.host', 'http://localhost:11434')
-            model = self.config_manager.get('ollama.model', 'qwen2-vl:7b')
-            
-            # Filtra apenas imagens
-            image_files = [f for f in self.scanned_files if f.path.lower().endswith(('.jpg', '.jpeg', '.png'))]
-            
-            if not image_files:
-                messagebox.showinfo("Info", "Nenhuma imagem encontrada para classificar!")
+            if not file_paths:
+                messagebox.showwarning("Aviso", "Selecione imagens (.jpg, .jpeg, .png, .gif, .bmp, .webp) para classificar!")
                 return
             
-            self.ai_output.insert(tk.END, f"Classificando {len(image_files)} imagens com IA...\n")
-            self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+            provider = self.config_manager.get('ai_provider.selected', 'ollama')
+
+            self.ai_output.insert(tk.END, f"Classificando {len(file_paths)} imagens com IA ({provider})...\n")
             self.ai_output.insert(tk.END, "-" * 50 + "\n")
             self.ai_output.see(tk.END)
             self.root.update()
             
-            classifier = ContextClassifier(host, model)
-            results = classifier.classify_batch([f.path for f in image_files])
+            if provider == 'gemini':
+                results = self.classify_with_gemini(file_paths)
+            else:
+                results = self.classify_with_ollama(file_paths)
             
-            for file_info, result in zip(image_files, results):
-                self.ai_output.insert(tk.END, f"{file_info.name} -> {result['category']}\n")
-                self.ai_output.see(tk.END)
-                self.root.update()
+            for i, result in enumerate(results):
+                if result:
+                    self.ai_output.insert(tk.END, f"{os.path.basename(file_paths[i])} -> {result['category']}\n")
+                    self.ai_output.see(tk.END)
+                    self.root.update()
             
             self.ai_output.insert(tk.END, "-" * 50 + "\n")
             self.ai_output.insert(tk.END, f"Classificação concluída: {len(results)} arquivos\n\n")
             self.ai_output.see(tk.END)
             
-            self.logger.info(f"Arquivos classificados com IA: {len(results)} imagens")
+            self.logger.info(f"Arquivos classificados com IA ({provider}): {len(results)} imagens")
             
         except Exception as e:
             self.ai_output.insert(tk.END, f"❌ Erro ao classificar arquivos: {str(e)}\n")
             self.ai_output.see(tk.END)
             self.logger.error(f"Erro ao classificar arquivos com IA: {str(e)}")
     
+    def classify_with_ollama(self, file_paths: list) -> list:
+        """Classifica imagens com Ollama."""
+        from ..ai.context_classifier import ContextClassifier
+
+        host = self.config_manager.get('ollama.host', 'http://localhost:11434')
+        model = self.config_manager.get('ollama.model', 'qwen2-vl:7b')
+
+        self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+        self.ai_output.see(tk.END)
+        self.root.update()
+
+        classifier = ContextClassifier(host, model)
+        return classifier.classify_batch(file_paths)
+
+    def classify_with_gemini(self, file_paths: list) -> list:
+        """Classifica imagens com Gemini."""
+        from ..ai.gemini_client import GeminiClient
+
+        api_key = self.config_manager.get('gemini.api_key')
+        model = self.config_manager.get('gemini.model', 'gemini-3.5-flash')
+
+        if not api_key:
+            self.ai_output.insert(tk.END, "❌ API Key do Gemini não configurada.\n")
+            self.ai_output.see(tk.END)
+            return []
+
+        self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+        self.ai_output.see(tk.END)
+        self.root.update()
+
+        client = GeminiClient(api_key, model)
+        return client.classify_batch(file_paths)
+
     def rename_with_ai(self):
         """Renomeia arquivos com IA."""
-        selected_items = self.tree.selection()
+        selected_items = self.ai_tree.selection()
         if not selected_items:
-            messagebox.showwarning("Aviso", "Selecione arquivos para renomear!")
+            messagebox.showwarning("Aviso", "Selecione arquivos na aba IA para renomear!")
             return
         
         try:
-            from ..ai.image_analyzer import ImageAnalyzer
-            
-            host = self.config_manager.get('ollama.host', 'http://localhost:11434')
-            model = self.config_manager.get('ollama.model', 'qwen2-vl:7b')
-            
-            # Filtra apenas imagens
-            image_items = []
+            # Coleta caminhos dos arquivos selecionados
+            file_paths = []
             for item in selected_items:
-                item_data = self.tree.item(item)
-                values = item_data.get('values')
-                if values and len(values) > 3:
-                    file_path = values[3]
-                    if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        image_items.append(item_data)
-            
-            if not image_items:
-                messagebox.showinfo("Info", "Selecione imagens (.jpg, .jpeg, .png) para renomear!")
+                item_data = self.ai_tree.item(item)
+                file_path = item_data['values'][2] if len(item_data['values']) > 2 else None
+                if file_path and file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')):
+                    file_paths.append(file_path)
+
+            if not file_paths:
+                messagebox.showwarning("Aviso", "Selecione imagens (.jpg, .jpeg, .png, .gif, .bmp, .webp) para renomear!")
                 return
             
+            provider = self.config_manager.get('ai_provider.selected', 'ollama')
+
             result = messagebox.askyesno(
                 "Confirmação",
-                f"Deseja renomear {len(image_items)} imagens com IA?\n"
+                f"Deseja renomear {len(file_paths)} imagens com IA ({provider})?\n"
                 "Os arquivos serão renomeados baseados no conteúdo analisado."
             )
             
             if not result:
                 return
             
-            self.ai_output.insert(tk.END, f"Renomeando {len(image_items)} imagens com IA...\n")
-            self.ai_output.insert(tk.END, f"Modelo: {model}\n")
+            self.ai_output.insert(tk.END, f"Renomeando {len(file_paths)} imagens com IA...\n")
+            self.ai_output.insert(tk.END, f"Provedor: {provider}\n")
             self.ai_output.insert(tk.END, "-" * 50 + "\n")
             self.ai_output.see(tk.END)
             self.root.update()
             
-            analyzer = ImageAnalyzer(host, model)
             renamed_count = 0
             error_count = 0
             
-            for item_data in image_items:
+            for file_path in file_paths:
                 try:
-                    values = item_data.get('values')
-                    if not values or len(values) <= 3:
+                    old_name = os.path.basename(file_path)
+
+                    if provider == 'gemini':
+                        result = self.analyze_with_gemini(file_path)
+                    else:
+                        result = self.analyze_with_ollama(file_path)
+
+                    if not result:
+                        error_count += 1
                         continue
-                    file_path = values[3]
-                    old_name = values[0]
                     
-                    result = analyzer.analyze_image(file_path)
                     suggested_name = result['suggested_name']
                     
                     # Adiciona extensão original
@@ -426,7 +729,7 @@ class MainWindow:
                     new_name = suggested_name + extension
                     
                     # Renomeia
-                    directory = self.selected_directory.get()
+                    directory = os.path.dirname(file_path)
                     self.batch_renamer = BatchRenamer(directory)
                     new_path = self.batch_renamer.rename_file(file_path, new_name)
                     
@@ -437,14 +740,14 @@ class MainWindow:
                     
                 except Exception as e:
                     error_count += 1
-                    self.ai_output.insert(tk.END, f"Erro ao renomear {item_data['values'][0]}: {str(e)}\n")
+                    self.ai_output.insert(tk.END, f"Erro ao renomear {os.path.basename(file_path)}: {str(e)}\n")
                     self.ai_output.see(tk.END)
             
             self.ai_output.insert(tk.END, "-" * 50 + "\n")
             self.ai_output.insert(tk.END, f"Renomeamento concluído: {renamed_count} arquivos, {error_count} erros\n\n")
             self.ai_output.see(tk.END)
             
-            self.logger.info(f"Renomeamento com IA concluído: {renamed_count} arquivos")
+            self.logger.info(f"Renomeamento com IA ({provider}) concluído: {renamed_count} arquivos")
             
             # Reescaneia para atualizar
             self.scan_files()
@@ -485,11 +788,15 @@ class MainWindow:
             # Escaneia o diretório
             self.scanned_files = scan_directory(directory)
             
-            # Limpa a treeview
+            # Limpa a treeview principal
             for item in self.tree.get_children():
                 self.tree.delete(item)
             
-            # Adiciona os arquivos na treeview
+            # Limpa a treeview da IA
+            for item in self.ai_tree.get_children():
+                self.ai_tree.delete(item)
+
+            # Adiciona os arquivos na treeview principal
             for file_info in self.scanned_files:
                 self.tree.insert('', tk.END, values=(
                     file_info.name,
@@ -498,6 +805,16 @@ class MainWindow:
                     file_info.path
                 ))
             
+            # Adiciona os arquivos na treeview da IA
+            for file_info in self.scanned_files:
+                file_ext = os.path.splitext(file_info.path)[1].lower()
+                file_type = "Imagem" if file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'] else "Outro"
+                self.ai_tree.insert('', tk.END, values=(
+                    file_info.name,
+                    file_type,
+                    file_info.path
+                ))
+
             # Mostra resumo
             summary = get_scan_summary(self.scanned_files)
             self.status_label.config(
@@ -516,15 +833,13 @@ class MainWindow:
         selected_items = self.tree.selection()
         if selected_items:
             item = self.tree.item(selected_items[0])
-            values = item.get('values')
-            if values and len(values) > 3:
-                file_path = values[3]  # Coluna do caminho
+            file_path = item['values'][3]  # Coluna do caminho
 
-                if self.image_preview:
-                    if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        self.image_preview.load_image(file_path)
-                    else:
-                        self.image_preview.clear_preview()
+            if self.image_preview:
+                if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    self.image_preview.load_image(file_path)
+                else:
+                    self.image_preview.clear_preview()
     
     def organize_files(self):
         """Organiza os arquivos escaneados por categoria."""
@@ -630,11 +945,8 @@ class MainWindow:
             for item in selected_items:
                 try:
                     item_data = self.tree.item(item)
-                    values = item_data.get('values')
-                    if not values or len(values) <= 3:
-                        continue
-                    file_path = values[3]  # Coluna do caminho
-                    filename = values[0]  # Coluna do nome
+                    file_path = item_data['values'][3]  # Coluna do caminho
+                    filename = item_data['values'][0]  # Coluna do nome
                     
                     destination = os.path.join(destination_folder, filename)
                     
@@ -694,11 +1006,8 @@ class MainWindow:
             return
         
         item = self.tree.item(selected_items[0])
-        values = item.get('values')
-        if not values or len(values) <= 3:
-            return
-        file_path = values[3]  # Coluna do caminho
-        current_name = values[0]  # Coluna do nome
+        file_path = item['values'][3]  # Coluna do caminho
+        current_name = item['values'][0]  # Coluna do nome
         
         # Pede novo nome
         new_name = simpledialog.askstring(

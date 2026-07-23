@@ -20,6 +20,11 @@ wheels/
 .installed.cfg
 *.egg
 
+# Exceção temporária para migração PySide6
+!src/models/
+!src/ui/
+!src/controllers/
+
 # Virtual Environment
 venv/
 env/
@@ -40,7 +45,7 @@ logs/*.log
 *.log
 
 # Ollama models (se baixados localmente)
-models/
+ollama_models/
 
 # Test coverage
 .coverage
@@ -50,6 +55,9 @@ htmlcov/
 # Environment variables
 .env
 .env.local
+
+# Configuration files with sensitive data
+config.json
 
 # Database
 *.db

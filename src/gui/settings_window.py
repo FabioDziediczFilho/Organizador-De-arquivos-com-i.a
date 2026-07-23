@@ -48,6 +48,7 @@ class SettingsWindow:
         
         # Abas
         self.create_ollama_tab(notebook)
+        self.create_gemini_tab(notebook)
         self.create_organization_tab(notebook)
         self.create_preview_tab(notebook)
         self.create_logging_tab(notebook)
@@ -95,6 +96,47 @@ class SettingsWindow:
         # Configura grid
         frame.columnconfigure(1, weight=1)
     
+    def create_gemini_tab(self, notebook):
+        """Cria a aba de configurações do Gemini."""
+        tab = ttk.Frame(notebook, padding="10")
+        notebook.add(tab, text="Gemini")
+
+        # Frame principal
+        frame = ttk.Frame(tab)
+        frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        # API Key
+        ttk.Label(frame, text="API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.variables['gemini_api_key'] = tk.StringVar(value=self.config_manager.get('gemini.api_key'))
+        ttk.Entry(frame, textvariable=self.variables['gemini_api_key'], width=50, show="*").grid(row=0, column=1, sticky=(tk.W, tk.E), pady=5, padx=5)
+
+        # Modelo
+        ttk.Label(frame, text="Modelo:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        self.variables['gemini_model'] = tk.StringVar(value=self.config_manager.get('gemini.model'))
+        gemini_models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.0-flash']
+        ttk.Combobox(frame, textvariable=self.variables['gemini_model'], values=gemini_models,
+                    state='readonly', width=20).grid(row=1, column=1, sticky=tk.W, pady=5, padx=5)
+
+        # Habilitar Gemini
+        ttk.Label(frame, text="Habilitar Gemini:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        self.variables['gemini_enabled'] = tk.BooleanVar(value=self.config_manager.get('gemini.enabled'))
+        ttk.Checkbutton(frame, variable=self.variables['gemini_enabled']).grid(row=2, column=1, sticky=tk.W, pady=5, padx=5)
+
+        # Selecionar provedor
+        ttk.Label(frame, text="Provedor de IA:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        self.variables['ai_provider'] = tk.StringVar(value=self.config_manager.get('ai_provider.selected'))
+        providers = ['ollama', 'gemini']
+        ttk.Combobox(frame, textvariable=self.variables['ai_provider'], values=providers,
+                    state='readonly', width=20).grid(row=3, column=1, sticky=tk.W, pady=5, padx=5)
+
+        # Informação
+        info_label = ttk.Label(frame, text="Nota: Obtenha sua API Key em https://makersuite.google.com/app/apikey",
+                              foreground="gray", wraplength=400)
+        info_label.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=10)
+
+        # Configura grid
+        frame.columnconfigure(1, weight=1)
+
     def create_organization_tab(self, notebook):
         """Cria a aba de configurações de organização."""
         tab = ttk.Frame(notebook, padding="10")
@@ -222,6 +264,14 @@ class SettingsWindow:
             self.config_manager.set('ollama.model', self.variables['ollama_model'].get())
             self.config_manager.set('ollama.enabled', self.variables['ollama_enabled'].get())
             
+            # Gemini
+            self.config_manager.set('gemini.api_key', self.variables['gemini_api_key'].get())
+            self.config_manager.set('gemini.model', self.variables['gemini_model'].get())
+            self.config_manager.set('gemini.enabled', self.variables['gemini_enabled'].get())
+
+            # AI Provider
+            self.config_manager.set('ai_provider.selected', self.variables['ai_provider'].get())
+
             # Organização
             self.config_manager.set('organization.create_backup', self.variables['org_backup'].get())
             self.config_manager.set('organization.confirm_actions', self.variables['org_confirm'].get())
@@ -271,6 +321,10 @@ class SettingsWindow:
                 self.variables['ollama_host'].set(self.config_manager.get('ollama.host'))
                 self.variables['ollama_model'].set(self.config_manager.get('ollama.model'))
                 self.variables['ollama_enabled'].set(self.config_manager.get('ollama.enabled'))
+                self.variables['gemini_api_key'].set(self.config_manager.get('gemini.api_key'))
+                self.variables['gemini_model'].set(self.config_manager.get('gemini.model'))
+                self.variables['gemini_enabled'].set(self.config_manager.get('gemini.enabled'))
+                self.variables['ai_provider'].set(self.config_manager.get('ai_provider.selected'))
                 self.variables['org_backup'].set(self.config_manager.get('organization.create_backup'))
                 self.variables['org_confirm'].set(self.config_manager.get('organization.confirm_actions'))
                 self.variables['org_rename'].set(self.config_manager.get('organization.auto_rename'))
