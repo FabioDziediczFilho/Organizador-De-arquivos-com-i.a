@@ -28,14 +28,23 @@ class ImagePreview:
         Returns:
             Frame com o visualizador
         """
-        self.frame = ttk.Frame(self.parent, padding="10")
+        self.frame = ttk.Frame(self.parent, padding=16, style="Card.TFrame")
         
         # Label para mostrar a imagem
-        self.image_label = ttk.Label(self.frame, text="Nenhuma imagem selecionada")
-        self.image_label.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.image_label = tk.Label(
+            self.frame,
+            text="Nenhuma imagem selecionada",
+            width=40,
+            height=12,
+            anchor="center",
+            fg="#5b6b7a",
+            bg="#ffffff",
+            font=("Arial", 11),
+        )
+        self.image_label.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 8))
         
         # Label com informações da imagem
-        self.info_label = ttk.Label(self.frame, text="")
+        self.info_label = tk.Label(self.frame, text="", fg="#5b6b7a", bg="#ffffff", font=("Arial", 10))
         self.info_label.grid(row=1, column=0, sticky=tk.W, pady=5)
         
         # Configura grid
@@ -44,7 +53,7 @@ class ImagePreview:
         
         return self.frame
     
-    def load_image(self, image_path: str, max_width: int = 400, max_height: int = 300):
+    def load_image(self, image_path: str, max_width: int = 420, max_height: int = 320):
         """
         Carrega e exibe uma imagem.
         
