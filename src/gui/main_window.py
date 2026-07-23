@@ -285,7 +285,10 @@ class MainWindow:
             from ..ai.image_analyzer import ImageAnalyzer
             
             item = self.tree.item(selected_items[0])
-            file_path = item['values'][3]
+            values = item.get('values')
+            if not values or len(values) <= 3:
+                return
+            file_path = values[3]
             
             if not file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
                 messagebox.showwarning("Aviso", "Selecione uma imagem (.jpg, .jpeg, .png)!")
@@ -378,9 +381,11 @@ class MainWindow:
             image_items = []
             for item in selected_items:
                 item_data = self.tree.item(item)
-                file_path = item_data['values'][3]
-                if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
-                    image_items.append(item_data)
+                values = item_data.get('values')
+                if values and len(values) > 3:
+                    file_path = values[3]
+                    if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        image_items.append(item_data)
             
             if not image_items:
                 messagebox.showinfo("Info", "Selecione imagens (.jpg, .jpeg, .png) para renomear!")
@@ -407,8 +412,11 @@ class MainWindow:
             
             for item_data in image_items:
                 try:
-                    file_path = item_data['values'][3]
-                    old_name = item_data['values'][0]
+                    values = item_data.get('values')
+                    if not values or len(values) <= 3:
+                        continue
+                    file_path = values[3]
+                    old_name = values[0]
                     
                     result = analyzer.analyze_image(file_path)
                     suggested_name = result['suggested_name']
@@ -508,13 +516,15 @@ class MainWindow:
         selected_items = self.tree.selection()
         if selected_items:
             item = self.tree.item(selected_items[0])
-            file_path = item['values'][3]  # Coluna do caminho
-            
-            if self.image_preview:
-                if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
-                    self.image_preview.load_image(file_path)
-                else:
-                    self.image_preview.clear_preview()
+            values = item.get('values')
+            if values and len(values) > 3:
+                file_path = values[3]  # Coluna do caminho
+
+                if self.image_preview:
+                    if file_path.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        self.image_preview.load_image(file_path)
+                    else:
+                        self.image_preview.clear_preview()
     
     def organize_files(self):
         """Organiza os arquivos escaneados por categoria."""
@@ -620,8 +630,11 @@ class MainWindow:
             for item in selected_items:
                 try:
                     item_data = self.tree.item(item)
-                    file_path = item_data['values'][3]  # Coluna do caminho
-                    filename = item_data['values'][0]  # Coluna do nome
+                    values = item_data.get('values')
+                    if not values or len(values) <= 3:
+                        continue
+                    file_path = values[3]  # Coluna do caminho
+                    filename = values[0]  # Coluna do nome
                     
                     destination = os.path.join(destination_folder, filename)
                     
@@ -681,8 +694,11 @@ class MainWindow:
             return
         
         item = self.tree.item(selected_items[0])
-        file_path = item['values'][3]  # Coluna do caminho
-        current_name = item['values'][0]  # Coluna do nome
+        values = item.get('values')
+        if not values or len(values) <= 3:
+            return
+        file_path = values[3]  # Coluna do caminho
+        current_name = values[0]  # Coluna do nome
         
         # Pede novo nome
         new_name = simpledialog.askstring(
