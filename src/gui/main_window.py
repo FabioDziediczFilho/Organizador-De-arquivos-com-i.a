@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 from typing import List, Optional
 import os
+import shutil
 
 from ..core.file_scanner import scan_directory, get_scan_summary, format_size
 from ..core.file_organizer import FileOrganizer
@@ -137,7 +138,7 @@ class MainWindow:
         
         ttk.Button(button_frame, text="Escanear Arquivos", command=self.scan_files, style="Accent.TButton").pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(button_frame, text="Organizar por Categoria", command=self.organize_files).pack(side=tk.LEFT, padx=6)
-        ttk.Button(button_frame, text="Organizar por Padrão", command=self.organize_by_pattern).pack(side=tk.LEFT, padx=6)
+        ttk.Button(button_frame, text="Mover para Pasta", command=self.move_to_folder).pack(side=tk.LEFT, padx=6)
         ttk.Button(button_frame, text="Renomear Selecionado", command=self.rename_selected).pack(side=tk.LEFT, padx=6)
         
         # Área de conteúdo
@@ -306,72 +307,100 @@ class MainWindow:
             self.logger.error(f"Erro ao organizar: {str(e)}")
             self.status_label.config(text="Erro ao organizar")
     
-    def organize_by_pattern(self):
-        """Organiza os arquivos por padrão de nome."""
-        if not self.scanned_files:
-            messagebox.showwarning("Aviso", "Escaneie arquivos primeiro!")
-            self.logger.warning("Tentativa de organizar por padrão sem escanear arquivos")
+    def move_to_folder(self):
+        """Move os arquivos selecionados para uma pasta personalizada."""
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Aviso", "Selecione pelo menos um arquivo para mover!")
+            self.logger.warning("Tentativa de mover sem selecionar arquivos")
             return
         
-        directory = self.selected_directory.get()
-        
         try:
+            # Pergunta para selecionar/criar pasta
+            directory = self.selected_directory.get()
+            if not directory:
+                messagebox.showwarning("Aviso", "Selecione um diretório primeiro!")
+                return
+            
+            # Abre diálogo para selecionar pasta destino
+            destination_folder = filedialog.askdirectory(
+                title="Selecione a pasta de destino",
+                initialdir=directory
+            )
+            
+            if not destination_folder:
+                self.logger.info("Seleção de pasta cancelada pelo usuário")
+                return
+            
             # Pergunta confirmação
             result = messagebox.askyesno(
                 "Confirmação",
-                f"Deseja organizar {len(self.scanned_files)} arquivos por padrão de nome?\n"
-                "Arquivos com nomes similares serão movidos para pastas específicas.\n"
-                "Ex: 'foto casamento 1', 'foto casamento 2' -> pasta 'Foto casamento'"
+                f"Deseja mover {len(selected_items)} arquivos selecionados para:\n{destination_folder}?"
             )
             
             if not result:
-                self.logger.info("Organização por padrão cancelada pelo usuário")
+                self.logger.info("Movimento cancelado pelo usuário")
                 return
             
-            self.status_label.config(text="Organizando por padrão...")
+            self.status_label.config(text="Movendo arquivos...")
             self.root.update()
             
-            # Cria o renomeador
-            self.batch_renamer = BatchRenamer(directory)
+            # Move os arquivos
+            moved_count = 0
+            error_count = 0
+            errors = []
             
-            # Obtém caminhos dos arquivos
-            file_paths = [f.path for f in self.scanned_files]
-            
-            # Organiza por padrão
-            results = self.batch_renamer.organize_by_pattern(file_paths)
+            for item in selected_items:
+                try:
+                    item_data = self.tree.item(item)
+                    file_path = item_data['values'][3]  # Coluna do caminho
+                    filename = item_data['values'][0]  # Coluna do nome
+                    
+                    destination = os.path.join(destination_folder, filename)
+                    
+                    # Trata duplicatas
+                    if os.path.exists(destination):
+                        base_name = os.path.splitext(filename)[0]
+                        extension = os.path.splitext(filename)[1]
+                        counter = 1
+                        while os.path.exists(destination):
+                            new_filename = f"{base_name}_{counter}{extension}"
+                            destination = os.path.join(destination_folder, new_filename)
+                            counter += 1
+                    
+                    # Move o arquivo
+                    shutil.move(file_path, destination)
+                    moved_count += 1
+                    self.logger.info(f"Movido: {file_path} -> {destination}")
+                    
+                except Exception as e:
+                    error_count += 1
+                    error_msg = f"Erro ao mover {item_data['values'][0]}: {str(e)}"
+                    errors.append(error_msg)
+                    self.logger.error(error_msg)
             
             # Mostra resultado
-            moved_count = len(results['moved'])
-            error_count = len(results['errors'])
-            
-            message = f"Organização por padrão concluída!\n\n"
+            message = f"Movimento concluído!\n\n"
             message += f"Arquivos movidos: {moved_count}\n"
-            message += f"Pastas criadas: {len(results['groups'])}\n\n"
-            
-            if results['groups']:
-                message += "Pastas criadas:\n"
-                for folder_name, group_info in results['groups'].items():
-                    message += f"- {folder_name}: {group_info['count']} arquivos\n"
             
             if error_count > 0:
-                message += f"\nErros: {error_count}\n"
-                for error in results['errors']:
-                    message += f"- {error['file']}: {error['error']}\n"
+                message += f"Erros: {error_count}\n\n"
+                message += "Arquivos com erro:\n"
+                for error in errors:
+                    message += f"- {error}\n"
             
             messagebox.showinfo("Resultado", message)
-            self.status_label.config(text=f"Organização concluída: {moved_count} arquivos movidos")
+            self.status_label.config(text=f"Movimento concluído: {moved_count} arquivos movidos")
             
-            self.logger.info(f"Organização por padrão concluída: {moved_count} arquivos movidos, {len(results['groups'])} pastas")
+            self.logger.info(f"Movimento concluído: {moved_count} arquivos movidos, {error_count} erros")
             
-            # Limpa a lista após organizar
-            self.scanned_files = []
-            for item in self.tree.get_children():
-                self.tree.delete(item)
+            # Reescaneia para atualizar a lista
+            self.scan_files()
             
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao organizar por padrão: {str(e)}")
-            self.logger.error(f"Erro ao organizar por padrão: {str(e)}")
-            self.status_label.config(text="Erro ao organizar")
+            messagebox.showerror("Erro", f"Erro ao mover arquivos: {str(e)}")
+            self.logger.error(f"Erro ao mover arquivos: {str(e)}")
+            self.status_label.config(text="Erro ao mover")
     
     def rename_selected(self):
         """Renomeia o arquivo selecionado."""
